@@ -1,0 +1,41 @@
+# Dependencias
+node_modules/
+
+# Archivos de logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Archivos temporales del sistema
+.DS_Store
+Thumbs.db
+
+# Variables de entorno
+.env
+.env.local
+.env.*.local
+
+# Build (si lo llegás a usar en el futuro con Babel, TypeScript, etc.)
+dist/
+build/
+
+# Cachés
+.cache/
+.parcel-cache/
+
+# Coverage de tests
+coverage/
+
+# Configuración de VSCode u otros editores
+.vscode/
+.idea/
+
+# Docker
+*.pid
+*.seed
+*.pid.lock
+
+# Archivos compilados
+*.tsbuildinfo

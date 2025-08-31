@@ -21,14 +21,9 @@ app.get('/admin/metrics', (req, res) => {
 </html>`)
 })
 
-app.get('/admin/reset', (req, res) => {
+app.post('/admin/reset', (req, res) => {
   config.fileserverHits = 0
-  res.type('text/plain; charset=utf-8').send(`<html>
-  <body>
-    <h1>Welcome, Chirpy Admin</h1>
-    <p>Chirpy has been visited ${config.fileserverHits} times!</p>
-  </body>
-</html>`)
+  res.sendStatus(200)
 })
 
 app.listen(PORT, () => {

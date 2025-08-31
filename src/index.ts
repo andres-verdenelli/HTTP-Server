@@ -29,9 +29,18 @@ const handleReset: Handler = (_req, res) => {
   res.sendStatus(200)
 }
 
+function replaceBadWords(phrase: string): string {
+  const bannedWords = ['kerfuffle', 'sharbert', 'fornax']
+  const words = phrase.split(' ')
+  const filteredWords = words.map(word =>
+    bannedWords.includes(word.toLowerCase()) ? '****' : word
+  )
+  return filteredWords.join(' ')
+}
+
 const handleValidateChirp: Handler = (req, res) => {
-  req.setEncoding('utf8')
   let raw = ''
+  req.setEncoding('utf8')
 
   req.on('data', chunk => {
     raw += chunk
@@ -39,14 +48,15 @@ const handleValidateChirp: Handler = (req, res) => {
 
   req.on('end', () => {
     try {
-      const parsedBody = JSON.parse(raw)
+      let parsedBody = JSON.parse(raw)
       if (!parsedBody.body || typeof parsedBody.body !== 'string') {
         return res.status(400).json({ error: 'Invalid or missing "body"' })
       }
       if (parsedBody.body.length > 140) {
         return res.status(400).json({ error: 'Chirp is too long' })
       }
-      return res.status(200).json({ valid: true })
+      const cleanedBody = replaceBadWords(parsedBody.body)
+      return res.status(200).json({ cleanedBody })
     } catch {
       return res.status(400).json({ error: 'Invalid JSON' })
     }

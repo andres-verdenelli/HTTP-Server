@@ -1,10 +1,16 @@
 import express, { NextFunction, Request, Response } from 'express'
 import { config } from './config.js'
-import { createCipheriv } from 'crypto'
 
 //Types
 type Handler = (req: Request, res: Response) => void
 type Middleware = (req: Request, res: Response, next: NextFunction) => void
+
+//Classes
+class BadRequestError extends Error {
+  constructor(message: string) {
+    super(message)
+  }
+}
 
 //Constants
 const app = express()
@@ -29,16 +35,7 @@ const handleReset: Handler = (_req, res) => {
   res.sendStatus(200)
 }
 
-function replaceBadWords(phrase: string): string {
-  const bannedWords = ['kerfuffle', 'sharbert', 'fornax']
-  const words = phrase.split(' ')
-  const filteredWords = words.map(word =>
-    bannedWords.includes(word.toLowerCase()) ? '****' : word
-  )
-  return filteredWords.join(' ')
-}
-
-const handleValidateChirp: Handler = (req, res) => {
+const handleValidateChirp: Middleware = (req, res, next) => {
   let raw = ''
   req.setEncoding('utf8')
 
@@ -53,14 +50,23 @@ const handleValidateChirp: Handler = (req, res) => {
         return res.status(400).json({ error: 'Invalid or missing "body"' })
       }
       if (parsedBody.body.length > 140) {
-        return res.status(400).json({ error: 'Chirp is too long' })
+        throw new BadRequestError('Chirp is too long. Max length is 140')
       }
       const cleanedBody = replaceBadWords(parsedBody.body)
       return res.status(200).json({ cleanedBody })
-    } catch {
-      return res.status(400).json({ error: 'Invalid JSON' })
+    } catch (err) {
+      return next(err)
     }
   })
+}
+
+function replaceBadWords(phrase: string): string {
+  const bannedWords = ['kerfuffle', 'sharbert', 'fornax']
+  const words = phrase.split(' ')
+  const filteredWords = words.map(word =>
+    bannedWords.includes(word.toLowerCase()) ? '****' : word
+  )
+  return filteredWords.join(' ')
 }
 
 //MiddleWares
@@ -80,6 +86,21 @@ const middlewareMetricsInc: Middleware = (_req, _res, next) => {
   next()
 }
 
+function errorHandler(
+  err: Error,
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  console.log(err)
+  if (err instanceof BadRequestError) {
+    return res.status(400).json({ error: err.message })
+  }
+  res.status(500).json({
+    error: 'Something went wrong on our end',
+  })
+}
+
 //Global Middlewares
 app.use(middlewareLogResponses)
 app.use('/app', middlewareMetricsInc)
@@ -93,6 +114,9 @@ app.get('/admin/metrics', handleMetrics)
 app.post('/admin/reset', handleReset)
 
 app.post('/api/validate_chirp', handleValidateChirp)
+
+//Error Handle Middleware
+app.use(errorHandler)
 
 //Server Listening
 app.listen(PORT, () => {

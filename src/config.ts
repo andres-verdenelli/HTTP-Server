@@ -5,6 +5,7 @@ import type { MigrationConfig } from 'drizzle-orm/migrator'
 type APIConfig = {
   fileserverHits: number
   db: DBConfig
+  platform: string
 }
 
 type DBConfig = {
@@ -20,4 +21,5 @@ export const config: APIConfig = {
       migrationsFolder: './drizzle',
     },
   },
+  platform: process.env.PLATFORM!,
 }

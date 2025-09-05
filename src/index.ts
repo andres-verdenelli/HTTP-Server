@@ -3,6 +3,7 @@ import { config } from './config.js'
 import postgres from 'postgres'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import { drizzle } from 'drizzle-orm/postgres-js'
+import { createUser, deleteAllUsers } from './db/queries/users.js'
 
 //Types
 type Handler = (req: Request, res: Response) => void
@@ -24,7 +25,7 @@ await migrationClient.end()
 const app = express()
 const PORT = 8080
 
-//Handlers
+//Handlers and Middlewares
 const handleHealthz: Handler = (_req, res) => {
   res.status(200).type('text/plain; charset=utf-8').send('OK')
 }
@@ -38,10 +39,20 @@ const handleMetrics: Handler = (_req, res) => {
 </html>`)
 }
 
-const handleReset: Handler = (_req, res) => {
-  config.fileserverHits = 0
-  res.sendStatus(200)
+const handleReset: Middleware = async (_req, res, next) => {
+  try {
+    if (config.platform !== 'dev') {
+      return res.status(403).send()
+    }
+    await deleteAllUsers()
+    config.fileserverHits = 0
+    return res.json({ ok: true })
+  } catch (error) {
+    next(error)
+  }
 }
+
+const handleResetDB: Middleware = async (req, res, next) => {}
 
 const handleValidateChirp: Middleware = (req, res, next) => {
   let raw = ''
@@ -77,7 +88,19 @@ function replaceBadWords(phrase: string): string {
   return filteredWords.join(' ')
 }
 
-//MiddleWares
+const handleCreateUser: Middleware = async (req, res, next) => {
+  try {
+    if (!req.is('application/json') || typeof req.body?.email !== 'string') {
+      throw new BadRequestError('Invalid JSON or missing "email"')
+    }
+    const email = req.body.email
+    const createdUser = await createUser({ email })
+    return res.status(201).json(createdUser)
+  } catch (error) {
+    return next(error)
+  }
+}
+
 const middlewareLogResponses: Middleware = (req, res, next) => {
   res.on('finish', () => {
     if (res.statusCode >= 400) {
@@ -123,6 +146,7 @@ app.post('/admin/reset', handleReset)
 
 app.post('/api/validate_chirp', handleValidateChirp)
 
+app.post('/api/users', express.json(), handleCreateUser)
 //Error Handle Middleware
 app.use(errorHandler)
 

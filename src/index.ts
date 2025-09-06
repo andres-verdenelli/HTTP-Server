@@ -4,6 +4,7 @@ import postgres from 'postgres'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { createUser, deleteAllUsers } from './db/queries/users.js'
+import { createChirp } from './db/queries/chirps.js'
 
 //Types
 type Handler = (req: Request, res: Response) => void
@@ -46,37 +47,31 @@ const handleReset: Middleware = async (_req, res, next) => {
     }
     await deleteAllUsers()
     config.fileserverHits = 0
-    return res.json({ ok: true })
+    return res.status(200).json({ ok: true })
   } catch (error) {
     next(error)
   }
 }
 
-const handleResetDB: Middleware = async (req, res, next) => {}
-
-const handleValidateChirp: Middleware = (req, res, next) => {
-  let raw = ''
-  req.setEncoding('utf8')
-
-  req.on('data', chunk => {
-    raw += chunk
-  })
-
-  req.on('end', () => {
-    try {
-      let parsedBody = JSON.parse(raw)
-      if (!parsedBody.body || typeof parsedBody.body !== 'string') {
-        return res.status(400).json({ error: 'Invalid or missing "body"' })
-      }
-      if (parsedBody.body.length > 140) {
-        throw new BadRequestError('Chirp is too long. Max length is 140')
-      }
-      const cleanedBody = replaceBadWords(parsedBody.body)
-      return res.status(200).json({ cleanedBody })
-    } catch (err) {
-      return next(err)
+const handleValidateChirp: Middleware = async (req, res, next) => {
+  //falta mejorar validacion
+  // si es 'application/json
+  // extraer el body.body y sacarle las palabras malas
+  // extraer el id
+  // crear un nuevo objeto new chirp
+  try {
+    const body = replaceBadWords(req.body.body)
+    if (typeof body !== 'string') {
+      return res.status(400).json({ error: 'Invalid or missing "body"' })
     }
-  })
+    if (body.length > 140) {
+      throw new BadRequestError('Chirp is too long. Max length is 140')
+    }
+    const newChirp = await createChirp(req.body)
+    return res.status(201).json(newChirp)
+  } catch (error) {
+    return next(error)
+  }
 }
 
 function replaceBadWords(phrase: string): string {
@@ -144,9 +139,10 @@ app.get('/admin/metrics', handleMetrics)
 
 app.post('/admin/reset', handleReset)
 
-app.post('/api/validate_chirp', handleValidateChirp)
+app.post('/api/chirps', express.json(), handleValidateChirp)
 
 app.post('/api/users', express.json(), handleCreateUser)
+
 //Error Handle Middleware
 app.use(errorHandler)
 

@@ -3,8 +3,13 @@ import { config } from './config.js'
 import postgres from 'postgres'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import { drizzle } from 'drizzle-orm/postgres-js'
-import { createUser, deleteAllUsers } from './db/queries/users.js'
+import {
+  createUser,
+  deleteAllUsers,
+  getUserByEmail,
+} from './db/queries/users.js'
 import { createChirp, getAllChirps, getChirp } from './db/queries/chirps.js'
+import { checkPasswordHash, hashPassword } from './auth.js'
 
 //Types
 type Handler = (req: Request, res: Response) => void
@@ -35,7 +40,7 @@ const handleMetrics: Handler = (_req, res) => {
   res.send(`<html>
   <body>
     <h1>Welcome, Chirpy Admin</h1>
-    <p>Chir˝py has been visited ${config.fileserverHits} times!</p>
+    <p>Chirpy has been visited ${config.fileserverHits} times!</p>
   </body>
 </html>`)
 }
@@ -93,12 +98,21 @@ function replaceBadWords(phrase: string): string {
 
 const handleCreateUser: Middleware = async (req, res, next) => {
   try {
-    if (!req.is('application/json') || typeof req.body?.email !== 'string') {
-      throw new BadRequestError('Invalid JSON or missing "email"')
+    if (!req.is('application/json')) {
+      throw new BadRequestError('Invalid Content-Type')
     }
-    const email = req.body.email
-    const createdUser = await createUser({ email })
-    return res.status(201).json(createdUser)
+    const email = req.body?.email
+    const password = req.body?.password
+    if (typeof email !== 'string') {
+      return res.status(400).json({ error: 'Missing email' })
+    }
+    if (typeof password !== 'string') {
+      return res.status(400).json({ error: 'Missing password' })
+    }
+    const hashedPassword = await hashPassword(password)
+    const createdUser = await createUser({ email, hashedPassword })
+    const { hashedPassword: _hp, ...safeUser } = createdUser
+    return res.status(201).json(safeUser)
   } catch (error) {
     return next(error)
   }
@@ -126,7 +140,7 @@ function errorHandler(
   res: Response,
   next: NextFunction
 ) {
-  console.log(err)
+  console.error(err)
   if (err instanceof BadRequestError) {
     return res.status(400).json({ error: err.message })
   }
@@ -157,6 +171,36 @@ const handleGetChirp: Middleware = async (req, res, next) => {
   }
 }
 
+const handleLogin: Middleware = async (req, res, next) => {
+  try {
+    if (!req.is('application/json')) {
+      return res.status(400).json({ error: 'Invalid Content-Type' })
+    }
+    const email = req.body?.email
+    const password = req.body?.password
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res
+        .status(400)
+        .json({ error: 'Invalid or missing "email" or "password"' })
+    }
+    const user = await getUserByEmail(email)
+    if (!user) {
+      return res.status(401).json({ error: 'Incorrect email or password' })
+    }
+    const passwordMatch = await checkPasswordHash(
+      password,
+      user?.hashedPassword
+    )
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Incorrect email or password' })
+    }
+    const { hashedPassword, ...userWithoutPassword } = user
+    return res.status(200).json(userWithoutPassword)
+  } catch (error) {
+    return next(error)
+  }
+}
+
 //Global Middlewares
 app.use(middlewareLogResponses)
 app.use('/app', middlewareMetricsInc)
@@ -176,6 +220,8 @@ app.post('/api/users', express.json(), handleCreateUser)
 app.get('/api/chirps', handleGetAllChirps)
 
 app.get('/api/chirps/:chirpId', handleGetChirp)
+
+app.post('/api/login', express.json(), handleLogin)
 
 //Error Handle Middleware
 app.use(errorHandler)

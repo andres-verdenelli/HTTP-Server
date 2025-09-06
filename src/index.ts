@@ -4,7 +4,7 @@ import postgres from 'postgres'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { createUser, deleteAllUsers } from './db/queries/users.js'
-import { createChirp } from './db/queries/chirps.js'
+import { createChirp, getAllChirps } from './db/queries/chirps.js'
 
 //Types
 type Handler = (req: Request, res: Response) => void
@@ -127,6 +127,15 @@ function errorHandler(
   })
 }
 
+const handleGetAllChirps: Middleware = async (req, res, next) => {
+  try {
+    const chirps = await getAllChirps()
+    return res.status(200).json(chirps)
+  } catch (error) {
+    return next(error)
+  }
+}
+
 //Global Middlewares
 app.use(middlewareLogResponses)
 app.use('/app', middlewareMetricsInc)
@@ -142,6 +151,8 @@ app.post('/admin/reset', handleReset)
 app.post('/api/chirps', express.json(), handleValidateChirp)
 
 app.post('/api/users', express.json(), handleCreateUser)
+
+app.get('/api/chirps', handleGetAllChirps)
 
 //Error Handle Middleware
 app.use(errorHandler)

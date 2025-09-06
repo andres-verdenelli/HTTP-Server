@@ -4,7 +4,7 @@ import postgres from 'postgres'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { createUser, deleteAllUsers } from './db/queries/users.js'
-import { createChirp, getAllChirps } from './db/queries/chirps.js'
+import { createChirp, getAllChirps, getChirp } from './db/queries/chirps.js'
 
 //Types
 type Handler = (req: Request, res: Response) => void
@@ -54,20 +54,28 @@ const handleReset: Middleware = async (_req, res, next) => {
 }
 
 const handleValidateChirp: Middleware = async (req, res, next) => {
-  //falta mejorar validacion
-  // si es 'application/json
-  // extraer el body.body y sacarle las palabras malas
-  // extraer el id
-  // crear un nuevo objeto new chirp
   try {
-    const body = replaceBadWords(req.body.body)
-    if (typeof body !== 'string') {
-      return res.status(400).json({ error: 'Invalid or missing "body"' })
+    if (!req.is('application/json')) {
+      return res.status(400).json({ error: 'Invalid Content-Type' })
     }
-    if (body.length > 140) {
+
+    const rawBody = req.body?.body
+    const userId = req.body?.userId
+
+    if (typeof rawBody !== 'string' || typeof userId !== 'string') {
+      return res
+        .status(400)
+        .json({ error: 'Invalid or missing "body" or "userId"' })
+    }
+
+    if (rawBody.length > 140) {
       throw new BadRequestError('Chirp is too long. Max length is 140')
     }
-    const newChirp = await createChirp(req.body)
+
+    const cleanedBody = replaceBadWords(rawBody)
+
+    const newChirp = await createChirp({ body: cleanedBody, userId })
+
     return res.status(201).json(newChirp)
   } catch (error) {
     return next(error)
@@ -136,6 +144,19 @@ const handleGetAllChirps: Middleware = async (req, res, next) => {
   }
 }
 
+const handleGetChirp: Middleware = async (req, res, next) => {
+  try {
+    const chirpId = req.params.chirpId
+    const chirp = await getChirp(chirpId)
+    if (!chirp) {
+      return res.status(404).json({ error: 'Chirp not found' })
+    }
+    return res.status(200).json(chirp)
+  } catch (error) {
+    return next(error)
+  }
+}
+
 //Global Middlewares
 app.use(middlewareLogResponses)
 app.use('/app', middlewareMetricsInc)
@@ -153,6 +174,8 @@ app.post('/api/chirps', express.json(), handleValidateChirp)
 app.post('/api/users', express.json(), handleCreateUser)
 
 app.get('/api/chirps', handleGetAllChirps)
+
+app.get('/api/chirps/:chirpId', handleGetChirp)
 
 //Error Handle Middleware
 app.use(errorHandler)

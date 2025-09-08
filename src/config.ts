@@ -6,6 +6,7 @@ type APIConfig = {
   fileserverHits: number
   db: DBConfig
   platform: string
+  secret: string
 }
 
 type DBConfig = {
@@ -22,4 +23,5 @@ export const config: APIConfig = {
     },
   },
   platform: process.env.PLATFORM!,
+  secret: process.env.SECRET!,
 }

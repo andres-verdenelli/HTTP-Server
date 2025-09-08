@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt'
+import { Request } from 'express'
 import jwt, { JwtPayload } from 'jsonwebtoken'
 
 type Payload = Pick<JwtPayload, 'iss' | 'sub' | 'iat' | 'exp'>
@@ -42,4 +43,18 @@ export function validateJWT(tokenString: string, secret: string): string {
   } catch (error) {
     throw new Error('Error validating token')
   }
+}
+
+export function getBearerToken(req: Request): string {
+  let authorization = req.get('authorization')
+
+  if (typeof authorization !== 'string') {
+    throw new Error('authorization is not a string or missing')
+  }
+
+  if (!authorization.startsWith('Bearer ')) {
+    throw new Error('invalid auth header')
+  }
+
+  return authorization.slice(7)
 }

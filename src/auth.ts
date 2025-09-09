@@ -1,6 +1,7 @@
 import bcrypt from 'bcrypt'
 import { Request } from 'express'
 import jwt, { JwtPayload } from 'jsonwebtoken'
+import crypto from 'node:crypto'
 
 type Payload = Pick<JwtPayload, 'iss' | 'sub' | 'iat' | 'exp'>
 
@@ -57,4 +58,8 @@ export function getBearerToken(req: Request): string {
   }
 
   return authorization.slice(7)
+}
+
+export function makeRefreshToken() {
+  return crypto.randomBytes(32).toString('hex')
 }

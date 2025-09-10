@@ -186,18 +186,18 @@ const middlewareMetricsInc: Middleware = (_req, _res, next) => {
 }
 
 function errorHandler(
-  err: Error,
-  req: Request,
+  err: unknown,
+  _req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ) {
   console.error(err)
-  if (err instanceof BadRequestError) {
-    return res.status(400).json({ error: err.message })
+  if (err instanceof HttpError) {
+    return res.status(err.status).json({ error: err.message, code: err.code })
   }
-  res.status(500).json({
-    error: 'Something went wrong on our end',
-  })
+  return res
+    .status(500)
+    .json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' })
 }
 
 const handleGetAllChirps: Middleware = async (req, res, next) => {

@@ -57,6 +57,11 @@ class UnsupportedMediaType extends HttpError {
     super(415, message, code)
   }
 }
+class Forbidden extends HttpError {
+  constructor(message = 'Forbidden', code = 'FORBIDDEN') {
+    super(403, message, code)
+  }
+}
 
 type AsyncMiddleware = (
   req: Request,

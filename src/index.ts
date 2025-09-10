@@ -27,12 +27,47 @@ import {
 type Handler = (req: Request, res: Response) => void
 type Middleware = (req: Request, res: Response, next: NextFunction) => void
 
-//Classes
-class BadRequestError extends Error {
-  constructor(message: string) {
+//Error Classes
+class HttpError extends Error {
+  constructor(public status: number, message: string, public code?: string) {
     super(message)
   }
 }
+
+class BadRequest extends HttpError {
+  constructor(message = 'Bad Request', code = 'BAD_REQUEST') {
+    super(400, message, code)
+  }
+}
+class Unauthorized extends HttpError {
+  constructor(message = 'Unauthorized', code = 'UNAUTHORIZED') {
+    super(401, message, code)
+  }
+}
+class NotFound extends HttpError {
+  constructor(message = 'Not Found', code = 'NOT_FOUND') {
+    super(404, message, code)
+  }
+}
+class UnsupportedMediaType extends HttpError {
+  constructor(
+    message = 'Unsupported Media Type',
+    code = 'UNSUPPORTED_MEDIA_TYPE'
+  ) {
+    super(415, message, code)
+  }
+}
+
+type AsyncMiddleware = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => Promise<any> | any
+
+const asyncHandler =
+  (fn: AsyncMiddleware): AsyncMiddleware =>
+  (req, res, next) =>
+    Promise.resolve(fn(req, res, next)).catch(next)
 
 //Automitic Migrations
 const migrationClient = postgres(config.db.url, { max: 1 })
@@ -115,7 +150,7 @@ function replaceBadWords(phrase: string): string {
 const handleCreateUser: Middleware = async (req, res, next) => {
   try {
     if (!req.is('application/json')) {
-      throw new BadRequestError('Invalid Content-Type')
+      throw new BadRequest('Invalid Content-Type')
     }
     const email = req.body?.email
     const password = req.body?.password

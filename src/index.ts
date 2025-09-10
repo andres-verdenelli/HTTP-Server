@@ -93,49 +93,41 @@ const handleMetrics: Handler = (_req, res) => {
 }
 
 const handleReset: Middleware = async (_req, res, next) => {
-  try {
-    if (config.platform !== 'dev') {
-      return res.status(403).send()
-    }
-    await deleteAllUsers()
-    config.fileserverHits = 0
-    return res.status(200).json({ ok: true })
-  } catch (error) {
-    next(error)
+  if (config.platform !== 'dev') {
+    return res.status(403).send()
   }
+  await deleteAllUsers()
+  config.fileserverHits = 0
+  return res.status(200).json({ ok: true })
 }
 
 const handleValidateChirp: Middleware = async (req, res, next) => {
-  try {
-    if (!req.is('application/json')) {
-      return res.status(400).json({ error: 'Invalid Content-Type' })
-    }
-
-    const rawBody = req.body?.body
-    if (typeof rawBody !== 'string') {
-      return res.status(400).json({ error: 'Invalid or missing "body"' })
-    }
-
-    let userId: string
-    try {
-      const token = getBearerToken(req)
-      userId = validateJWT(token, config.secret)
-    } catch {
-      return res.status(401).json({ error: 'Invalid or missing token' })
-    }
-
-    if (rawBody.length > 140) {
-      throw new BadRequestError('Chirp is too long. Max length is 140')
-    }
-
-    const cleanedBody = replaceBadWords(rawBody)
-
-    const newChirp = await createChirp({ body: cleanedBody, userId })
-
-    return res.status(201).json(newChirp)
-  } catch (error) {
-    return next(error)
+  if (!req.is('application/json')) {
+    return res.status(400).json({ error: 'Invalid Content-Type' })
   }
+
+  const rawBody = req.body?.body
+  if (typeof rawBody !== 'string') {
+    return res.status(400).json({ error: 'Invalid or missing "body"' })
+  }
+
+  let userId: string
+  try {
+    const token = getBearerToken(req)
+    userId = validateJWT(token, config.secret)
+  } catch {
+    return res.status(401).json({ error: 'Invalid or missing token' })
+  }
+
+  if (rawBody.length > 140) {
+    throw new BadRequest('Chirp is too long. Max length is 140')
+  }
+
+  const cleanedBody = replaceBadWords(rawBody)
+
+  const newChirp = await createChirp({ body: cleanedBody, userId })
+
+  return res.status(201).json(newChirp)
 }
 
 function replaceBadWords(phrase: string): string {
@@ -148,25 +140,21 @@ function replaceBadWords(phrase: string): string {
 }
 
 const handleCreateUser: Middleware = async (req, res, next) => {
-  try {
-    if (!req.is('application/json')) {
-      throw new BadRequest('Invalid Content-Type')
-    }
-    const email = req.body?.email
-    const password = req.body?.password
-    if (typeof email !== 'string') {
-      return res.status(400).json({ error: 'Missing email' })
-    }
-    if (typeof password !== 'string') {
-      return res.status(400).json({ error: 'Missing password' })
-    }
-    const hashedPassword = await hashPassword(password)
-    const createdUser = await createUser({ email, hashedPassword })
-    const { hashedPassword: _hp, ...safeUser } = createdUser
-    return res.status(201).json(safeUser)
-  } catch (error) {
-    return next(error)
+  if (!req.is('application/json')) {
+    throw new BadRequest('Invalid Content-Type')
   }
+  const email = req.body?.email
+  const password = req.body?.password
+  if (typeof email !== 'string') {
+    return res.status(400).json({ error: 'Missing email' })
+  }
+  if (typeof password !== 'string') {
+    return res.status(400).json({ error: 'Missing password' })
+  }
+  const hashedPassword = await hashPassword(password)
+  const createdUser = await createUser({ email, hashedPassword })
+  const { hashedPassword: _hp, ...safeUser } = createdUser
+  return res.status(201).json(safeUser)
 }
 
 const middlewareLogResponses: Middleware = (req, res, next) => {
@@ -201,117 +189,94 @@ function errorHandler(
 }
 
 const handleGetAllChirps: Middleware = async (req, res, next) => {
-  try {
-    const chirps = await getAllChirps()
-    return res.status(200).json(chirps)
-  } catch (error) {
-    return next(error)
-  }
+  const chirps = await getAllChirps()
+  return res.status(200).json(chirps)
 }
 
 const handleGetChirp: Middleware = async (req, res, next) => {
-  try {
-    const chirpId = req.params.chirpId
-    const chirp = await getChirp(chirpId)
-    if (!chirp) {
-      return res.status(404).json({ error: 'Chirp not found' })
-    }
-    return res.status(200).json(chirp)
-  } catch (error) {
-    return next(error)
+  const chirpId = req.params.chirpId
+  const chirp = await getChirp(chirpId)
+  if (!chirp) {
+    return res.status(404).json({ error: 'Chirp not found' })
   }
+  return res.status(200).json(chirp)
 }
 
 const handleLogin: Middleware = async (req, res, next) => {
-  try {
-    if (!req.is('application/json')) {
-      return res.status(400).json({ error: 'Invalid Content-Type' })
-    }
-    const email = req.body?.email
-    const password = req.body?.password
-
-    if (typeof email !== 'string' || typeof password !== 'string') {
-      return res
-        .status(400)
-        .json({ error: 'Invalid or missing "email" or "password"' })
-    }
-
-    const user = await getUserByEmail(email)
-
-    if (!user) {
-      return res.status(401).json({ error: 'Incorrect email or password' })
-    }
-
-    const passwordMatch = await checkPasswordHash(
-      password,
-      user?.hashedPassword
-    )
-
-    if (!passwordMatch) {
-      return res.status(401).json({ error: 'Incorrect email or password' })
-    }
-
-    const jwt = makeJWT(user.id, 3600, config.secret)
-    const { hashedPassword, ...userWithoutPassword } = user
-
-    const refreshToken = makeRefreshToken()
-    const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000) // 60 días
-
-    await createRefreshToken({
-      token: refreshToken,
-      expiresAt: expiresAt,
-      userId: userWithoutPassword.id,
-    })
-
-    return res
-      .status(200)
-      .json({ ...userWithoutPassword, token: jwt, refreshToken: refreshToken })
-  } catch (error) {
-    return next(error)
+  if (!req.is('application/json')) {
+    return res.status(400).json({ error: 'Invalid Content-Type' })
   }
+  const email = req.body?.email
+  const password = req.body?.password
+
+  if (typeof email !== 'string' || typeof password !== 'string') {
+    return res
+      .status(400)
+      .json({ error: 'Invalid or missing "email" or "password"' })
+  }
+
+  const user = await getUserByEmail(email)
+
+  if (!user) {
+    return res.status(401).json({ error: 'Incorrect email or password' })
+  }
+
+  const passwordMatch = await checkPasswordHash(password, user?.hashedPassword)
+
+  if (!passwordMatch) {
+    return res.status(401).json({ error: 'Incorrect email or password' })
+  }
+
+  const jwt = makeJWT(user.id, 3600, config.secret)
+  const { hashedPassword, ...userWithoutPassword } = user
+
+  const refreshToken = makeRefreshToken()
+  const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000) // 60 días
+
+  await createRefreshToken({
+    token: refreshToken,
+    expiresAt: expiresAt,
+    userId: userWithoutPassword.id,
+  })
+
+  return res
+    .status(200)
+    .json({ ...userWithoutPassword, token: jwt, refreshToken: refreshToken })
 }
 
 const handleRefresh: Middleware = async (req, res, next) => {
+  let token: string
   try {
-    let token: string
-    try {
-      token = getBearerToken(req) // este es el refresh token
-    } catch {
-      return res
-        .status(401)
-        .json({ error: 'Missing or invalid Authorization header' })
-    }
-
-    const user = await getUserFromRefreshToken(token)
-    if (!user) {
-      return res
-        .status(401)
-        .json({ error: 'Invalid, expired, or revoked refresh token' })
-    }
-
-    const newAccessToken = makeJWT(user.id, 3600, config.secret)
-    return res.status(200).json({ token: newAccessToken })
-  } catch (err) {
-    return next(err)
+    token = getBearerToken(req) // este es el refresh token
+  } catch {
+    return res
+      .status(401)
+      .json({ error: 'Missing or invalid Authorization header' })
   }
+
+  const user = await getUserFromRefreshToken(token)
+  if (!user) {
+    return res
+      .status(401)
+      .json({ error: 'Invalid, expired, or revoked refresh token' })
+  }
+
+  const newAccessToken = makeJWT(user.id, 3600, config.secret)
+  return res.status(200).json({ token: newAccessToken })
 }
 
 const handleRevoke: Middleware = async (req, res, next) => {
+  let token: string
   try {
-    let token: string
-    try {
-      token = getBearerToken(req) // refresh token en Authorization
-    } catch {
-      return res
-        .status(401)
-        .json({ error: 'Missing or invalid Authorization header' })
-    }
-
-    await revokeRefreshToken(token)
-    return res.status(204).send()
-  } catch (err) {
-    return next(err)
+    token = getBearerToken(req) // refresh token en Authorization
+  } catch {
+    return res
+      .status(401)
+      .json({ error: 'Missing or invalid Authorization header' })
   }
+
+  await revokeRefreshToken(token)
+  return res.status(204).send()
 }
 
 //Global Middlewares
@@ -324,21 +289,21 @@ app.get('/api/healthz', handleHealthz)
 
 app.get('/admin/metrics', handleMetrics)
 
-app.post('/admin/reset', handleReset)
+app.post('/admin/reset', asyncHandler(handleReset))
 
-app.post('/api/chirps', express.json(), handleValidateChirp)
+app.post('/api/chirps', express.json(), asyncHandler(handleValidateChirp))
 
-app.post('/api/users', express.json(), handleCreateUser)
+app.post('/api/users', express.json(), asyncHandler(handleCreateUser))
 
-app.get('/api/chirps', handleGetAllChirps)
+app.get('/api/chirps', asyncHandler(handleGetAllChirps))
 
-app.get('/api/chirps/:chirpId', handleGetChirp)
+app.get('/api/chirps/:chirpId', asyncHandler(handleGetChirp))
 
-app.post('/api/login', express.json(), handleLogin)
+app.post('/api/login', express.json(), asyncHandler(handleLogin))
 
-app.post('/api/refresh', handleRefresh)
+app.post('/api/refresh', asyncHandler(handleRefresh))
 
-app.post('/api/revoke', handleRevoke)
+app.post('/api/revoke', asyncHandler(handleRevoke))
 
 //Error Handle Middleware
 app.use(errorHandler)

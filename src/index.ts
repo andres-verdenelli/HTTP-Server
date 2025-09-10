@@ -229,18 +229,6 @@ const handleLogin: Middleware = async (req, res, next) => {
     }
     const email = req.body?.email
     const password = req.body?.password
-    // let expiresInSeconds = req.body?.expiresInSeconds
-
-    // if (
-    //   expiresInSeconds !== undefined &&
-    //   (typeof expiresInSeconds !== 'number' ||
-    //     !Number.isFinite(expiresInSeconds) ||
-    //     expiresInSeconds <= 0)
-    // ) {
-    //   return res
-    //     .status(400)
-    //     .json({ error: 'expiresInSeconds must be a positive number' })
-    // }
 
     if (typeof email !== 'string' || typeof password !== 'string') {
       return res
@@ -262,13 +250,6 @@ const handleLogin: Middleware = async (req, res, next) => {
     if (!passwordMatch) {
       return res.status(401).json({ error: 'Incorrect email or password' })
     }
-
-    // if (expiresInSeconds === undefined) {
-    //   expiresInSeconds = 3600
-    // }
-
-    // expiresInSeconds = Math.min(3600, expiresInSeconds)
-    // expiresInSeconds = Math.max(1, expiresInSeconds)
 
     const jwt = makeJWT(user.id, 3600, config.secret)
     const { hashedPassword, ...userWithoutPassword } = user

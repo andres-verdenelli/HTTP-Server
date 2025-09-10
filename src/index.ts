@@ -8,6 +8,7 @@ import {
   deleteAllUsers,
   getUserByEmail,
   getUserFromRefreshToken,
+  updateUserCredentials,
 } from './db/queries/users.js'
 import { createChirp, getAllChirps, getChirp } from './db/queries/chirps.js'
 import {
@@ -259,6 +260,37 @@ const handleRevoke: AsyncMiddleware = async (req, res, next) => {
   return res.status(204).send()
 }
 
+const handleUpdateEmailPassword: AsyncMiddleware = async (req, res, next) => {
+  if (!req.is('application/json')) throw new UnsupportedMediaType()
+
+  let userId: string
+  try {
+    const token = getBearerToken(req)
+    userId = validateJWT(token, config.secret)
+  } catch (error) {
+    throw new Unauthorized('Invalid or missing token')
+  }
+
+  const email = req.body?.email
+  const password = req.body?.password
+  if (typeof email !== 'string' || typeof password !== 'string') {
+    throw new BadRequest('Missing "email" or "password"')
+  }
+  const hashedPassword = await hashPassword(password)
+
+  const updated = await updateUserCredentials({
+    id: userId,
+    email,
+    hashedPassword,
+  })
+  if (!updated) {
+    throw new Unauthorized('Invalid token or user not found')
+  }
+
+  const { hashedPassword: _hp, ...safeUser } = updated
+  res.status(200).json(safeUser)
+}
+
 //Global Middlewares
 app.use(middlewareLogResponses)
 app.use('/app', middlewareMetricsInc)
@@ -284,6 +316,8 @@ app.post('/api/login', express.json(), asyncHandler(handleLogin))
 app.post('/api/refresh', asyncHandler(handleRefresh))
 
 app.post('/api/revoke', asyncHandler(handleRevoke))
+
+app.put('/api/users', express.json(), asyncHandler(handleUpdateEmailPassword))
 
 //Error Handle Middleware
 app.use(errorHandler)

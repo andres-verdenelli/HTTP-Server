@@ -43,3 +43,18 @@ export async function getUserFromRefreshToken(token: string) {
 
   return rows[0] ?? null
 }
+
+export async function updateUserCredentials(params: {
+  id: string
+  email: string
+  hashedPassword: string
+}) {
+  const { id, email, hashedPassword } = params
+  const [row] = await db
+    .update(users)
+    .set({ email, hashedPassword })
+    .where(eq(users.id, id))
+    .returning()
+
+  return row ?? null
+}

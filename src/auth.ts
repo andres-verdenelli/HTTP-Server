@@ -1,9 +1,7 @@
 import bcrypt from 'bcrypt'
 import { Request } from 'express'
-import jwt, { JwtPayload } from 'jsonwebtoken'
+import jwt from 'jsonwebtoken'
 import crypto from 'node:crypto'
-
-type Payload = Pick<JwtPayload, 'iss' | 'sub' | 'iat' | 'exp'>
 
 export async function hashPassword(password: string): Promise<string> {
   return await bcrypt.hash(password, 10)
@@ -17,33 +15,28 @@ export async function checkPasswordHash(
 }
 
 export function makeJWT(
-  userID: string,
+  userId: string,
   expiresIn: number,
   secret: string
 ): string {
-  const timeNow = Math.floor(Date.now() / 1000)
-  const payload: Payload = {
-    iss: 'chirpy',
-    sub: userID,
-    iat: timeNow,
-    exp: timeNow + expiresIn,
-  }
-  return jwt.sign(payload, secret)
+  return jwt.sign({}, secret, {
+    algorithm: 'HS256',
+    issuer: 'chirpy',
+    subject: userId,
+    expiresIn,
+  })
 }
 
 export function validateJWT(tokenString: string, secret: string): string {
-  try {
-    const decoded = jwt.verify(tokenString, secret)
-    if (typeof decoded === 'string') {
-      throw new Error('el token es un string')
-    }
-    if (!decoded.sub || typeof decoded.sub !== 'string') {
-      throw new Error('No existe sub dentro del token o no es un string')
-    }
-    return decoded.sub
-  } catch (error) {
-    throw new Error('Error validating token')
+  const decoded = jwt.verify(tokenString, secret)
+
+  if (typeof decoded === 'string') {
+    throw new Error('Token payload is a string')
   }
+  if (!decoded.sub || typeof decoded.sub !== 'string') {
+    throw new Error('Missing or invalid "sub" in token')
+  }
+  return decoded.sub
 }
 
 export function getBearerToken(req: Request): string {

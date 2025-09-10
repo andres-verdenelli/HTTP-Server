@@ -97,31 +97,27 @@ const handleMetrics: Handler = (_req, res) => {
 </html>`)
 }
 
-const handleReset: Middleware = async (_req, res, next) => {
-  if (config.platform !== 'dev') {
-    return res.status(403).send()
-  }
+const handleReset: AsyncMiddleware = async (_req, res, next) => {
+  if (config.platform !== 'dev') throw new Forbidden()
   await deleteAllUsers()
   config.fileserverHits = 0
   return res.status(200).json({ ok: true })
 }
 
-const handleValidateChirp: Middleware = async (req, res, next) => {
-  if (!req.is('application/json')) {
-    return res.status(400).json({ error: 'Invalid Content-Type' })
-  }
+const handleValidateChirp: AsyncMiddleware = async (req, res, next) => {
+  if (!req.is('application/json')) throw new UnsupportedMediaType()
 
   const rawBody = req.body?.body
-  if (typeof rawBody !== 'string') {
-    return res.status(400).json({ error: 'Invalid or missing "body"' })
-  }
+
+  if (typeof rawBody !== 'string')
+    throw new BadRequest('Invalid or missing "body"')
 
   let userId: string
   try {
     const token = getBearerToken(req)
     userId = validateJWT(token, config.secret)
   } catch {
-    return res.status(401).json({ error: 'Invalid or missing token' })
+    throw new Unauthorized('Invalid or missing token')
   }
 
   if (rawBody.length > 140) {
@@ -144,18 +140,15 @@ function replaceBadWords(phrase: string): string {
   return filteredWords.join(' ')
 }
 
-const handleCreateUser: Middleware = async (req, res, next) => {
-  if (!req.is('application/json')) {
-    throw new BadRequest('Invalid Content-Type')
-  }
+const handleCreateUser: AsyncMiddleware = async (req, res, next) => {
+  if (!req.is('application/json')) throw new UnsupportedMediaType()
+
   const email = req.body?.email
   const password = req.body?.password
-  if (typeof email !== 'string') {
-    return res.status(400).json({ error: 'Missing email' })
-  }
-  if (typeof password !== 'string') {
-    return res.status(400).json({ error: 'Missing password' })
-  }
+
+  if (typeof email !== 'string') throw new BadRequest('Missing email')
+  if (typeof password !== 'string') throw new BadRequest('Missing password')
+
   const hashedPassword = await hashPassword(password)
   const createdUser = await createUser({ email, hashedPassword })
   const { hashedPassword: _hp, ...safeUser } = createdUser
@@ -193,44 +186,33 @@ function errorHandler(
     .json({ error: 'Internal Server Error', code: 'INTERNAL_ERROR' })
 }
 
-const handleGetAllChirps: Middleware = async (req, res, next) => {
+const handleGetAllChirps: AsyncMiddleware = async (req, res, next) => {
   const chirps = await getAllChirps()
   return res.status(200).json(chirps)
 }
 
-const handleGetChirp: Middleware = async (req, res, next) => {
+const handleGetChirp: AsyncMiddleware = async (req, res, next) => {
   const chirpId = req.params.chirpId
   const chirp = await getChirp(chirpId)
-  if (!chirp) {
-    return res.status(404).json({ error: 'Chirp not found' })
-  }
+  if (!chirp) throw new NotFound('Chirp not found')
   return res.status(200).json(chirp)
 }
 
-const handleLogin: Middleware = async (req, res, next) => {
-  if (!req.is('application/json')) {
-    return res.status(400).json({ error: 'Invalid Content-Type' })
-  }
+const handleLogin: AsyncMiddleware = async (req, res, next) => {
+  if (!req.is('application/json')) throw new UnsupportedMediaType()
   const email = req.body?.email
   const password = req.body?.password
 
-  if (typeof email !== 'string' || typeof password !== 'string') {
-    return res
-      .status(400)
-      .json({ error: 'Invalid or missing "email" or "password"' })
-  }
+  if (typeof email !== 'string' || typeof password !== 'string')
+    throw new BadRequest('Invalid or missing "email" or "password"')
 
   const user = await getUserByEmail(email)
 
-  if (!user) {
-    return res.status(401).json({ error: 'Incorrect email or password' })
-  }
+  if (!user) throw new Unauthorized('Incorrect email or password')
 
-  const passwordMatch = await checkPasswordHash(password, user?.hashedPassword)
+  const passwordMatch = await checkPasswordHash(password, user.hashedPassword)
 
-  if (!passwordMatch) {
-    return res.status(401).json({ error: 'Incorrect email or password' })
-  }
+  if (!passwordMatch) throw new Unauthorized('Incorrect email or password')
 
   const jwt = makeJWT(user.id, 3600, config.secret)
   const { hashedPassword, ...userWithoutPassword } = user
@@ -249,35 +231,28 @@ const handleLogin: Middleware = async (req, res, next) => {
     .json({ ...userWithoutPassword, token: jwt, refreshToken: refreshToken })
 }
 
-const handleRefresh: Middleware = async (req, res, next) => {
+const handleRefresh: AsyncMiddleware = async (req, res, next) => {
   let token: string
   try {
     token = getBearerToken(req) // este es el refresh token
   } catch {
-    return res
-      .status(401)
-      .json({ error: 'Missing or invalid Authorization header' })
+    throw new Unauthorized('Missing or invalid Authorization header')
   }
 
   const user = await getUserFromRefreshToken(token)
-  if (!user) {
-    return res
-      .status(401)
-      .json({ error: 'Invalid, expired, or revoked refresh token' })
-  }
+  if (!user)
+    throw new Unauthorized('Invalid, expired, or revoked refresh token')
 
   const newAccessToken = makeJWT(user.id, 3600, config.secret)
   return res.status(200).json({ token: newAccessToken })
 }
 
-const handleRevoke: Middleware = async (req, res, next) => {
+const handleRevoke: AsyncMiddleware = async (req, res, next) => {
   let token: string
   try {
     token = getBearerToken(req) // refresh token en Authorization
   } catch {
-    return res
-      .status(401)
-      .json({ error: 'Missing or invalid Authorization header' })
+    throw new Unauthorized('Missing or invalid Authorization header')
   }
 
   await revokeRefreshToken(token)

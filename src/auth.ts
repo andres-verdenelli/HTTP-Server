@@ -67,5 +67,5 @@ export function getAPIKey(req: Request): string {
     throw new Error('invalid auth header')
   }
 
-  return authorization.slice(7)
+  return authorization.slice(7).trim()
 }

@@ -16,6 +16,7 @@ import {
   deleteChirpById,
   getAllChirps,
   getChirp,
+  getChirpsByAuthor,
 } from './db/queries/chirps.js'
 import {
   checkPasswordHash,
@@ -195,8 +196,15 @@ function errorHandler(
 }
 
 const handleGetAllChirps: AsyncMiddleware = async (req, res, next) => {
-  const chirps = await getAllChirps()
-  return res.status(200).json(chirps)
+  let authorId = ''
+  const authorIdQuery = (req.query as any)?.authorId
+  if (typeof authorIdQuery === 'string') {
+    authorId = authorIdQuery
+  }
+  const data = authorId
+    ? await getChirpsByAuthor(authorId)
+    : await getAllChirps()
+  return res.status(200).json(data)
 }
 
 const handleGetChirp: AsyncMiddleware = async (req, res, next) => {

@@ -30,3 +30,12 @@ export async function deleteChirpById(chirpId: string) {
     .returning({ id: chirps.id })
   return deleted.length > 0
 }
+
+export async function getChirpsByAuthor(authorId: string) {
+  const rows = await db
+    .select()
+    .from(chirps)
+    .where(eq(chirps.userId, authorId))
+    .orderBy(asc(chirps.createdAt))
+  return rows
+}

@@ -58,3 +58,12 @@ export async function updateUserCredentials(params: {
 
   return row ?? null
 }
+
+export async function updateUserRedChirpById(userId: string, isRed: boolean) {
+  const [user] = await db
+    .update(users)
+    .set({ isChirpyRed: isRed })
+    .where(eq(users.id, userId))
+    .returning()
+  return user ?? null
+}

@@ -9,10 +9,17 @@ import {
   getUserByEmail,
   getUserFromRefreshToken,
   updateUserCredentials,
+  updateUserRedChirpById,
 } from './db/queries/users.js'
-import { createChirp, getAllChirps, getChirp } from './db/queries/chirps.js'
+import {
+  createChirp,
+  deleteChirpById,
+  getAllChirps,
+  getChirp,
+} from './db/queries/chirps.js'
 import {
   checkPasswordHash,
+  getAPIKey,
   getBearerToken,
   hashPassword,
   makeJWT,
@@ -291,6 +298,60 @@ const handleUpdateEmailPassword: AsyncMiddleware = async (req, res, next) => {
   res.status(200).json(safeUser)
 }
 
+const handleDeleteChirp: AsyncMiddleware = async (req, res, next) => {
+  let userId: string
+  try {
+    const token = getBearerToken(req)
+    userId = validateJWT(token, config.secret)
+  } catch (error) {
+    throw new Unauthorized('Invalid or missing token')
+  }
+
+  const chirpId = req.params.chirpID
+  if (!chirpId) throw new BadRequest('Missing chirpID')
+
+  const chirp = await getChirp(chirpId)
+  if (!chirp) throw new NotFound('Chirp not found')
+
+  if (chirp.userId !== userId)
+    throw new Forbidden('You can only delete your own chirps')
+
+  await deleteChirpById(chirpId)
+
+  res.sendStatus(204)
+}
+
+const handleWebhook: AsyncMiddleware = async (req, res, _next) => {
+  if (!req.is('application/json')) throw new UnsupportedMediaType()
+
+  const event = req.body?.event
+  if (event !== 'user.upgraded') {
+    return res.sendStatus(204)
+  }
+
+  // --- API Key guard ---
+  let apiKey: string
+  try {
+    apiKey = getAPIKey(req)
+  } catch {
+    throw new Unauthorized('Missing or invalid API key') // <-- 401
+  }
+  if (apiKey !== config.polkaKey) {
+    throw new Unauthorized('Invalid API key') // <-- 401
+  }
+
+  const userId = req.body?.data?.userId
+  if (typeof userId !== 'string' || userId.length === 0) {
+    throw new BadRequest('Invalid or missing "data.userId"')
+  }
+
+  const updatedUser = await updateUserRedChirpById(userId, true)
+  if (!updatedUser) {
+    throw new NotFound('User not found')
+  }
+
+  return res.sendStatus(204)
+}
 //Global Middlewares
 app.use(middlewareLogResponses)
 app.use('/app', middlewareMetricsInc)
@@ -319,6 +380,9 @@ app.post('/api/revoke', asyncHandler(handleRevoke))
 
 app.put('/api/users', express.json(), asyncHandler(handleUpdateEmailPassword))
 
+app.delete('/api/chirps/:chirpID', asyncHandler(handleDeleteChirp))
+
+app.post('/api/polka/webhooks', express.json(), asyncHandler(handleWebhook))
 //Error Handle Middleware
 app.use(errorHandler)
 

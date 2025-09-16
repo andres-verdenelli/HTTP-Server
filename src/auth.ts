@@ -56,3 +56,16 @@ export function getBearerToken(req: Request): string {
 export function makeRefreshToken() {
   return crypto.randomBytes(32).toString('hex')
 }
+
+export function getAPIKey(req: Request): string {
+  let authorization = req.get('authorization')
+
+  if (typeof authorization !== 'string') {
+    throw new Error('authorizaton is not a string or missing')
+  }
+  if (!authorization.startsWith('ApiKey ')) {
+    throw new Error('invalid auth header')
+  }
+
+  return authorization.slice(7)
+}

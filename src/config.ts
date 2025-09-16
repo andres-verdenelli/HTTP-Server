@@ -7,6 +7,7 @@ type APIConfig = {
   db: DBConfig
   platform: string
   secret: string
+  polkaKey: string
 }
 
 type DBConfig = {
@@ -24,4 +25,5 @@ export const config: APIConfig = {
   },
   platform: process.env.PLATFORM!,
   secret: process.env.SECRET!,
+  polkaKey: process.env.POLKA_KEY!,
 }

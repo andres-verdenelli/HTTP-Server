@@ -204,7 +204,20 @@ const handleGetAllChirps: AsyncMiddleware = async (req, res, next) => {
   const data = authorId
     ? await getChirpsByAuthor(authorId)
     : await getAllChirps()
-  return res.status(200).json(data)
+
+  let sort: 'asc' | 'desc' = 'asc'
+  const sortQuery = (req.query as any)?.sort
+  if (sortQuery === 'desc') sort = 'desc'
+
+  const sorted = [...data].sort((a: any, b: any) => {
+    const at = new Date(a.createdAt as any).getTime()
+    const bt = new Date(b.createdAt as any).getTime()
+    return sort === 'asc' ? at - bt : bt - at
+  })
+
+  return res.status(200).json(sorted)
+
+  // return res.status(200).json(data)
 }
 
 const handleGetChirp: AsyncMiddleware = async (req, res, next) => {
